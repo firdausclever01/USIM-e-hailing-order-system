@@ -45,7 +45,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                 const container = document.getElementById('orders-container');
                 if (data && data.length > 0) {
                     container.innerHTML = data.map(order => `
-                        <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 flex flex-col gap-2">
+                        <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 flex flex-col gap-2 shadow-lg">
                             <div class="flex justify-between items-center">
                                 <span class="text-xs font-semibold text-cyan-300">${order.sender} ${order.username ? '(@' + order.username + ')' : ''}</span>
                                 <span class="text-xs font-bold text-emerald-300">RM 6.00</span>
@@ -56,10 +56,13 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                             </a>
                         </div>
                     `).join('');
+                } else {
+                    container.innerHTML = '<div class="text-center py-12 text-slate-500">Listening for incoming Telegram orders...</div>';
                 }
             } catch (e) { console.error(e); }
         }
         setInterval(fetchLiveOrders, 3000);
+        fetchLiveOrders();
     </script>
 </body>
 </html>"""
@@ -79,6 +82,16 @@ def webhook():
         live_orders_queue.insert(0, data)
     return jsonify({"status": "success"}), 200
 
+@app.route('/test-order', methods=['GET'])
+def test_order():
+    mock_payload = {
+        "sender": "Aina",
+        "username": "aina_student",
+        "text": "dobi putra nilai ke kk1 5 orang"
+    }
+    live_orders_queue.insert(0, mock_payload)
+    return jsonify({"status": "Mock order added!", "queue": live_orders_queue}), 200
+
 # --- TELEGRAM BACKGROUND WORKER ---
 def start_telegram_listener():
     loop = asyncio.new_event_loop()
@@ -87,7 +100,6 @@ def start_telegram_listener():
 
     @client.on(events.NewMessage(chats=TARGET_GROUP_ID))
     async def tele_handler(event):
-        print(f"DEBUG: New message caught: {event.raw_text}")
         msg_text = event.raw_text
         sender = await event.get_sender()
         payload = {
@@ -100,11 +112,9 @@ def start_telegram_listener():
             port = os.environ.get('PORT', 5000)
             http_req.post(f'http://127.0.0.1:{port}/webhook', json=payload, timeout=2)
         except Exception as e:
-            print(f"Error posting to webhook: {e}")
+            print(f"Error: {e}")
 
-    print("Starting Telethon client...")
     client.start()
-    print("Telethon client connected successfully!")
     loop.run_until_complete(client.run_until_disconnected())
 
 if not any(t.name == 'TelegramWorker' for t in threading.enumerate()):
