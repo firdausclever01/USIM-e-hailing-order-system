@@ -80,32 +80,34 @@ def webhook():
     return jsonify({"status": "success"}), 200
 
 # --- TELEGRAM BACKGROUND WORKER ---
-client = TelegramClient('session_cloud', api_id, api_hash)
-
-@client.on(events.NewMessage(chats=TARGET_GROUP_ID))
-async def tele_handler(event):
-    msg_text = event.raw_text
-    sender = await event.get_sender()
-    payload = {
-        "sender": getattr(sender, 'first_name', 'Student'),
-        "username": getattr(sender, 'username', None),
-        "text": msg_text
-    }
-    import requests as http_req
-    try:
-        port = os.environ.get('PORT', 5000)
-        http_req.post(f'http://127.0.0.1:{port}/webhook', json=payload, timeout=2)
-    except Exception as e:
-        print(f"Error: {e}")
-
-def run_telegram():
+def start_telegram_listener():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
+    client = TelegramClient('session_cloud', api_id, api_hash)
+
+    @client.on(events.NewMessage(chats=TARGET_GROUP_ID))
+    async def tele_handler(event):
+        msg_text = event.raw_text
+        sender = await event.get_sender()
+        payload = {
+            "sender": getattr(sender, 'first_name', 'Student'),
+            "username": getattr(sender, 'username', None),
+            "text": msg_text
+        }
+        import requests as http_req
+        try:
+            port = os.environ.get('PORT', 5000)
+            http_req.post(f'http://127.0.0.1:{port}/webhook', json=payload, timeout=2)
+        except Exception as e:
+            print(f"Error: {e}")
+
     client.start()
     loop.run_until_complete(client.run_until_disconnected())
 
-# Start background Telegram listener thread with its own loop
-threading.Thread(target=run_telegram, daemon=True).start()
+# Safely trigger background listener thread when the module is imported by Gunicorn
+if not any(t.name == 'TelegramWorker' for t in threading.enumerate()):
+    t = threading.Thread(target=start_telegram_listener, name='TelegramWorker', daemon=True)
+    t.start()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
