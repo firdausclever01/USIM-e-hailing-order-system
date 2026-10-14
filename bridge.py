@@ -3,6 +3,7 @@ import asyncio
 from flask import Flask, jsonify
 from telethon import TelegramClient
 from telethon.sessions import StringSession
+from telethon.tl.types import PeerChannel
 
 api_id = 34569406
 api_hash = 'f9b8a66dc67f43bea1cc5502689c0f33'
@@ -43,6 +44,12 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                 const res = await fetch('/api/live-orders');
                 const data = await res.json();
                 const container = document.getElementById('orders-container');
+                
+                if (data.error) {
+                    container.innerHTML = `<div class="text-center py-6 text-rose-400 font-mono text-xs bg-rose-950/30 p-4 rounded-xl border border-rose-900">⚠️ Backend Error: ${data.error}</div>`;
+                    return;
+                }
+
                 if (data && data.length > 0) {
                     container.innerHTML = data.map(order => `
                         <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 flex flex-col gap-2 shadow-lg">
@@ -77,11 +84,27 @@ def get_live_orders():
     
     async def fetch_messages():
         session_str = os.environ.get('SESSION_STRING', '')
+        if not session_str:
+            return {"error": "SESSION_STRING environment variable is missing on Render!"}
+            
         client = TelegramClient(StringSession(session_str), api_id, api_hash)
-        await client.connect()
-        orders = []
         try:
-            async for message in client.iter_messages(TARGET_GROUP_ID, limit=15):
+            await client.connect()
+            if not await client.is_user_authorized():
+                return {"error": "Session string is unauthorized or invalid!"}
+            
+            # Force cache load of dialogs so the private channel access hash is registered
+            target_entity = None
+            async for dialog in client.iter_dialogs():
+                if dialog.id == TARGET_GROUP_ID or dialog.id == abs(TARGET_GROUP_ID):
+                    target_entity = dialog.entity
+                    break
+            
+            if not target_entity:
+                target_entity = await client.get_entity(TARGET_GROUP_ID)
+
+            orders = []
+            async for message in client.iter_messages(target_entity, limit=15):
                 if message.text:
                     sender = await message.get_sender()
                     orders.append({
@@ -90,14 +113,14 @@ def get_live_orders():
                         "username": getattr(sender, 'username', None) if sender else None,
                         "text": message.text
                     })
+            return orders
         except Exception as e:
-            print(f"Fetch error: {e}")
+            return {"error": str(e)}
         finally:
             await client.disconnect()
-        return orders
 
-    orders_list = loop.run_until_complete(fetch_messages())
-    return jsonify(orders_list)
+    result = loop.run_until_complete(fetch_messages())
+    return jsonify(result)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
