@@ -102,9 +102,9 @@ def run_telegram():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     client.start()
-    client.run_until_disconnected()
+    loop.run_until_complete(client.run_until_disconnected())
 
-# Start background Telegram listener thread when Gunicorn boots up
+# Start background Telegram listener thread with its own loop
 threading.Thread(target=run_telegram, daemon=True).start()
 
 if __name__ == '__main__':
