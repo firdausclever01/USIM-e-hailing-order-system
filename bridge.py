@@ -25,24 +25,30 @@ DASHBOARD_HTML = """<!DOCTYPE html>
             <div class="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 font-bold text-xl">🚗</div>
             <div>
                 <h1 class="text-base font-bold text-white">Cloud E-Hailing Dispatcher</h1>
-                <p class="text-xs text-emerald-400">● 24/7 Cloud Active</p>
+                <p id="connection-status" class="text-xs text-amber-400">● Connecting to server...</p>
             </div>
         </div>
+        <button onclick="fetchLiveOrders()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-3 py-1.5 rounded-lg border border-slate-700">🔄 Refresh</button>
     </header>
     <main class="flex-1 max-w-4xl w-full mx-auto p-4 flex flex-col space-y-4">
         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl flex-1">
             <h3 class="text-sm font-bold text-white mb-3">📥 Live Customer Orders</h3>
             <div id="orders-container" class="space-y-3">
-                <div class="text-center py-12 text-slate-500">Connecting to cloud stream...</div>
+                <div class="text-center py-12 text-slate-500">Waiting for incoming Telegram orders...</div>
             </div>
         </div>
     </main>
     <script>
         async function fetchLiveOrders() {
+            const statusEl = document.getElementById('connection-status');
+            const container = document.getElementById('orders-container');
             try {
                 const res = await fetch('/api/live-orders');
                 const data = await res.json();
-                const container = document.getElementById('orders-container');
+                
+                statusEl.textContent = "● Live & Connected";
+                statusEl.className = "text-xs text-emerald-400";
+
                 if (data && data.length > 0) {
                     container.innerHTML = data.map(order => `
                         <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 flex flex-col gap-2 shadow-lg">
@@ -58,7 +64,11 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                 } else {
                     container.innerHTML = '<div class="text-center py-12 text-slate-500">Listening for incoming Telegram orders...</div>';
                 }
-            } catch (e) { console.error(e); }
+            } catch (e) {
+                console.error(e);
+                statusEl.textContent = "● Connection Error";
+                statusEl.className = "text-xs text-rose-400";
+            }
         }
         setInterval(fetchLiveOrders, 3000);
         fetchLiveOrders();
@@ -78,7 +88,6 @@ def get_live_orders():
 def webhook():
     data = request.json
     if data:
-        # Prevent duplicates if message ID already processed
         if not any(o.get('msg_id') == data.get('msg_id') for o in live_orders_queue):
             live_orders_queue.insert(0, data)
     return jsonify({"status": "success"}), 200
@@ -92,7 +101,6 @@ def start_telegram_listener():
     @client.on(events.NewMessage())
     async def tele_handler(event):
         chat_id = event.chat_id
-        # Normalize chat ID check for supergroups (-100 prefix)
         if chat_id == TARGET_GROUP_ID or chat_id == abs(TARGET_GROUP_ID) or str(chat_id) in [str(TARGET_GROUP_ID), str(abs(TARGET_GROUP_ID)), f"-{abs(TARGET_GROUP_ID)}"]:
             msg_text = event.raw_text
             if not msg_text:
