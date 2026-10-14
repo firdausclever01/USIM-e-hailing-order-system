@@ -78,7 +78,9 @@ def get_live_orders():
 def webhook():
     data = request.json
     if data:
-        live_orders_queue.insert(0, data)
+        # Prevent duplicates if message ID already processed
+        if not any(o.get('msg_id') == data.get('msg_id') for o in live_orders_queue):
+            live_orders_queue.insert(0, data)
     return jsonify({"status": "success"}), 200
 
 # --- TELEGRAM BACKGROUND WORKER ---
@@ -87,23 +89,32 @@ def start_telegram_listener():
     asyncio.set_event_loop(loop)
     client = TelegramClient('session_cloud', api_id, api_hash)
 
-    @client.on(events.NewMessage(chats=TARGET_GROUP_ID))
+    @client.on(events.NewMessage())
     async def tele_handler(event):
-        msg_text = event.raw_text
-        sender = await event.get_sender()
-        payload = {
-            "sender": getattr(sender, 'first_name', 'Student'),
-            "username": getattr(sender, 'username', None),
-            "text": msg_text
-        }
-        import requests as http_req
-        try:
-            port = os.environ.get('PORT', 5000)
-            http_req.post(f'http://127.0.0.1:{port}/webhook', json=payload, timeout=2)
-        except Exception as e:
-            print(f"Error: {e}")
+        chat_id = event.chat_id
+        # Normalize chat ID check for supergroups (-100 prefix)
+        if chat_id == TARGET_GROUP_ID or chat_id == abs(TARGET_GROUP_ID) or str(chat_id) in [str(TARGET_GROUP_ID), str(abs(TARGET_GROUP_ID)), f"-{abs(TARGET_GROUP_ID)}"]:
+            msg_text = event.raw_text
+            if not msg_text:
+                return
+            
+            sender = await event.get_sender()
+            payload = {
+                "msg_id": event.id,
+                "sender": getattr(sender, 'first_name', 'Student'),
+                "username": getattr(sender, 'username', None),
+                "text": msg_text
+            }
+            import requests as http_req
+            try:
+                port = os.environ.get('PORT', 5000)
+                http_req.post(f'http://127.0.0.1:{port}/webhook', json=payload, timeout=2)
+            except Exception as e:
+                print(f"Webhook error: {e}")
 
+    print("Starting Telethon global listener...")
     client.start()
+    print("Telethon client connected successfully!")
     loop.run_until_complete(client.run_until_disconnected())
 
 if not any(t.name == 'TelegramWorker' for t in threading.enumerate()):
