@@ -48,7 +48,6 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                         <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 flex flex-col gap-2 shadow-lg">
                             <div class="flex justify-between items-center">
                                 <span class="text-xs font-semibold text-cyan-300">${order.sender} ${order.username ? '(@' + order.username + ')' : ''}</span>
-                                <span class="text-xs font-bold text-emerald-300">RM 6.00</span>
                             </div>
                             <p class="text-xs text-slate-200 bg-slate-900 p-2 rounded font-mono">"${order.text}"</p>
                             <a href="${order.username ? 'https://t.me/' + order.username + '?text=' + encodeURIComponent('Hi, nak ambil ride ni ke? 🚗💨') : 'tg://'}" target="_blank" class="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-3 rounded-lg text-xs text-center">
@@ -81,16 +80,6 @@ def webhook():
     if data:
         live_orders_queue.insert(0, data)
     return jsonify({"status": "success"}), 200
-
-@app.route('/test-order', methods=['GET'])
-def test_order():
-    mock_payload = {
-        "sender": "Aina",
-        "username": "aina_student",
-        "text": "dobi putra nilai ke kk1 5 orang"
-    }
-    live_orders_queue.insert(0, mock_payload)
-    return jsonify({"status": "Mock order added!", "queue": live_orders_queue}), 200
 
 # --- TELEGRAM BACKGROUND WORKER ---
 def start_telegram_listener():
