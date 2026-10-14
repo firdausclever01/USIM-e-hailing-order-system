@@ -1,6 +1,5 @@
-import asyncio
-import threading
 import os
+import threading
 from flask import Flask, request, jsonify
 from telethon import TelegramClient, events
 
@@ -25,7 +24,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
             <div class="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 font-bold text-xl">🚗</div>
             <div>
                 <h1 class="text-base font-bold text-white">Cloud E-Hailing Dispatcher</h1>
-                <p id="connection-status" class="text-xs text-amber-400">● Connecting to server...</p>
+                <p id="connection-status" class="text-xs text-emerald-400">● Live & Connected</p>
             </div>
         </div>
         <button onclick="fetchLiveOrders()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-3 py-1.5 rounded-lg border border-slate-700">🔄 Refresh</button>
@@ -34,21 +33,16 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl flex-1">
             <h3 class="text-sm font-bold text-white mb-3">📥 Live Customer Orders</h3>
             <div id="orders-container" class="space-y-3">
-                <div class="text-center py-12 text-slate-500">Waiting for incoming Telegram orders...</div>
+                <div class="text-center py-12 text-slate-500">Listening for incoming Telegram orders...</div>
             </div>
         </div>
     </main>
     <script>
         async function fetchLiveOrders() {
-            const statusEl = document.getElementById('connection-status');
-            const container = document.getElementById('orders-container');
             try {
                 const res = await fetch('/api/live-orders');
                 const data = await res.json();
-                
-                statusEl.textContent = "● Live & Connected";
-                statusEl.className = "text-xs text-emerald-400";
-
+                const container = document.getElementById('orders-container');
                 if (data && data.length > 0) {
                     container.innerHTML = data.map(order => `
                         <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 flex flex-col gap-2 shadow-lg">
@@ -64,11 +58,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                 } else {
                     container.innerHTML = '<div class="text-center py-12 text-slate-500">Listening for incoming Telegram orders...</div>';
                 }
-            } catch (e) {
-                console.error(e);
-                statusEl.textContent = "● Connection Error";
-                statusEl.className = "text-xs text-rose-400";
-            }
+            } catch (e) { console.error(e); }
         }
         setInterval(fetchLiveOrders, 3000);
         fetchLiveOrders();
@@ -92,54 +82,35 @@ def webhook():
             live_orders_queue.insert(0, data)
     return jsonify({"status": "success"}), 200
 
-# --- TELEGRAM BACKGROUND WORKER ---
-def process_message(msg_id, msg_text, sender):
-    if not msg_text:
-        return
-    payload = {
-        "msg_id": msg_id,
-        "sender": getattr(sender, 'first_name', 'Student'),
-        "username": getattr(sender, 'username', None),
-        "text": msg_text
-    }
-    if not any(o.get('msg_id') == msg_id for o in live_orders_queue):
-        live_orders_queue.insert(0, payload)
-
-async def telegram_worker():
+# --- TELETHON USERBOT WORKER ---
+def run_telethon():
     client = TelegramClient('session_cloud', api_id, api_hash)
-    await client.start()
-    print("Telethon client started successfully!")
-
-    try:
-        # Explicitly resolve the entity so Telegram registers subscription/access
-        entity = await client.get_entity(TARGET_GROUP_ID)
-        print(f"Successfully resolved target group: {getattr(entity, 'title', TARGET_GROUP_ID)}")
-    except Exception as e:
-        print(f"Error resolving target group entity: {e}")
-
-    @client.on(events.NewMessage())
-    async def tele_handler(event):
-        chat_id = event.chat_id
-        if str(chat_id) in [str(TARGET_GROUP_ID), str(abs(TARGET_GROUP_ID)), f"-{abs(TARGET_GROUP_ID)}"]:
-            sender = await event.get_sender()
-            process_message(event.id, event.raw_text, sender)
-
-    while True:
+    
+    @client.on(events.NewMessage(chats=TARGET_GROUP_ID))
+    async def handler(event):
+        msg_text = event.raw_text
+        if not msg_text:
+            return
+        sender = await event.get_sender()
+        payload = {
+            "msg_id": event.id,
+            "sender": getattr(sender, 'first_name', 'Student'),
+            "username": getattr(sender, 'username', None),
+            "text": msg_text
+        }
+        import requests as http_req
         try:
-            async for message in client.iter_messages(TARGET_GROUP_ID, limit=10):
-                sender = await message.get_sender()
-                process_message(message.id, message.text, sender)
+            port = os.environ.get('PORT', 5000)
+            http_req.post(f'http://127.0.0.1:{port}/webhook', json=payload, timeout=2)
         except Exception as e:
-            print(f"Polling loop error: {e}")
-        await asyncio.sleep(5)
+            print(f"Webhook push error: {e}")
 
-def start_telegram_listener():
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(telegram_worker())
+    client.start()
+    print("Telethon userbot listener started successfully!")
+    client.run_until_disconnected()
 
-if not any(t.name == 'TelegramWorker' for t in threading.enumerate()):
-    t = threading.Thread(target=start_telegram_listener, name='TelegramWorker', daemon=True)
+if not any(t.name == 'TelethonThread' for t in threading.enumerate()):
+    t = threading.Thread(target=run_telethon, name='TelethonThread', daemon=True)
     t.start()
 
 if __name__ == '__main__':
