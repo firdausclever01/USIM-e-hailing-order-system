@@ -1,14 +1,13 @@
 import os
-import threading
-from flask import Flask, request, jsonify
-from telethon import TelegramClient, events
+import asyncio
+from flask import Flask, jsonify
+from telethon import TelegramClient
 
 api_id = 34569406
 api_hash = 'f9b8a66dc67f43bea1cc5502689c0f33'
 TARGET_GROUP_ID = -1001307640388
 
 app = Flask(__name__)
-live_orders_queue = []
 
 DASHBOARD_HTML = """<!DOCTYPE html>
 <html lang="en">
@@ -33,7 +32,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl flex-1">
             <h3 class="text-sm font-bold text-white mb-3">📥 Live Customer Orders</h3>
             <div id="orders-container" class="space-y-3">
-                <div class="text-center py-12 text-slate-500">Listening for incoming Telegram orders...</div>
+                <div class="text-center py-12 text-slate-500">Loading orders from Telegram...</div>
             </div>
         </div>
     </main>
@@ -56,11 +55,11 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                         </div>
                     `).join('');
                 } else {
-                    container.innerHTML = '<div class="text-center py-12 text-slate-500">Listening for incoming Telegram orders...</div>';
+                    container.innerHTML = '<div class="text-center py-12 text-slate-500">No recent orders found in group.</div>';
                 }
             } catch (e) { console.error(e); }
         }
-        setInterval(fetchLiveOrders, 3000);
+        setInterval(fetchLiveOrders, 5000);
         fetchLiveOrders();
     </script>
 </body>
@@ -72,46 +71,31 @@ def index():
 
 @app.route('/api/live-orders', methods=['GET'])
 def get_live_orders():
-    return jsonify(live_orders_queue)
-
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    data = request.json
-    if data:
-        if not any(o.get('msg_id') == data.get('msg_id') for o in live_orders_queue):
-            live_orders_queue.insert(0, data)
-    return jsonify({"status": "success"}), 200
-
-# --- TELETHON USERBOT WORKER ---
-def run_telethon():
-    client = TelegramClient('session_cloud', api_id, api_hash)
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     
-    @client.on(events.NewMessage(chats=TARGET_GROUP_ID))
-    async def handler(event):
-        msg_text = event.raw_text
-        if not msg_text:
-            return
-        sender = await event.get_sender()
-        payload = {
-            "msg_id": event.id,
-            "sender": getattr(sender, 'first_name', 'Student'),
-            "username": getattr(sender, 'username', None),
-            "text": msg_text
-        }
-        import requests as http_req
+    async def fetch_messages():
+        client = TelegramClient('session_cloud', api_id, api_hash)
+        await client.connect()
+        orders = []
         try:
-            port = os.environ.get('PORT', 5000)
-            http_req.post(f'http://127.0.0.1:{port}/webhook', json=payload, timeout=2)
+            async for message in client.iter_messages(TARGET_GROUP_ID, limit=15):
+                if message.text:
+                    sender = await message.get_sender()
+                    orders.append({
+                        "msg_id": message.id,
+                        "sender": getattr(sender, 'first_name', 'Student') if sender else 'Student',
+                        "username": getattr(sender, 'username', None) if sender else None,
+                        "text": message.text
+                    })
         except Exception as e:
-            print(f"Webhook push error: {e}")
+            print(f"Fetch error: {e}")
+        finally:
+            await client.disconnect()
+        return orders
 
-    client.start()
-    print("Telethon userbot listener started successfully!")
-    client.run_until_disconnected()
-
-if not any(t.name == 'TelethonThread' for t in threading.enumerate()):
-    t = threading.Thread(target=run_telethon, name='TelethonThread', daemon=True)
-    t.start()
+    orders_list = loop.run_until_complete(fetch_messages())
+    return jsonify(orders_list)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
