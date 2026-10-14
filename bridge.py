@@ -108,7 +108,14 @@ def process_message(msg_id, msg_text, sender):
 async def telegram_worker():
     client = TelegramClient('session_cloud', api_id, api_hash)
     await client.start()
-    print("Telethon worker active and fetching messages...")
+    print("Telethon client started successfully!")
+
+    try:
+        # Explicitly resolve the entity so Telegram registers subscription/access
+        entity = await client.get_entity(TARGET_GROUP_ID)
+        print(f"Successfully resolved target group: {getattr(entity, 'title', TARGET_GROUP_ID)}")
+    except Exception as e:
+        print(f"Error resolving target group entity: {e}")
 
     @client.on(events.NewMessage())
     async def tele_handler(event):
@@ -117,7 +124,6 @@ async def telegram_worker():
             sender = await event.get_sender()
             process_message(event.id, event.raw_text, sender)
 
-    # Active Polling Loop (fetches recent 10 messages every 5 seconds)
     while True:
         try:
             async for message in client.iter_messages(TARGET_GROUP_ID, limit=10):
