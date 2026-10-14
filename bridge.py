@@ -57,7 +57,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                                 <span class="text-xs font-semibold text-cyan-300">${order.sender} ${order.username ? '(@' + order.username + ')' : ''}</span>
                             </div>
                             <p class="text-xs text-slate-200 bg-slate-900 p-2 rounded font-mono">"${order.text}"</p>
-                            <a href="${order.username ? 'https://t.me/' + order.username + '?text=' + encodeURIComponent('Hi, nak ambil ride ni ke? 🚗💨') : 'tg://'}" target="_blank" class="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-3 rounded-lg text-xs text-center">
+                            <a href="${order.username ? 'https://t.me/' + order.username + '?text=' + encodeURIComponent('Assalam, masih kosong? saya pickup boleh ke? 🚗💨') : 'tg://'}" target="_blank" class="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-3 rounded-lg text-xs text-center">
                                 💬 Direct PM Customer
                             </a>
                         </div>
