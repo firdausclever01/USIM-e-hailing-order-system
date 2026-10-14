@@ -2,6 +2,7 @@ import os
 import asyncio
 from flask import Flask, jsonify
 from telethon import TelegramClient
+from telethon.sessions import StringSession
 
 api_id = 34569406
 api_hash = 'f9b8a66dc67f43bea1cc5502689c0f33'
@@ -75,7 +76,8 @@ def get_live_orders():
     asyncio.set_event_loop(loop)
     
     async def fetch_messages():
-        client = TelegramClient('session_cloud', api_id, api_hash)
+        session_str = os.environ.get('SESSION_STRING', '')
+        client = TelegramClient(StringSession(session_str), api_id, api_hash)
         await client.connect()
         orders = []
         try:
