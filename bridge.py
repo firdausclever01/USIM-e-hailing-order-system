@@ -93,37 +93,44 @@ def webhook():
     return jsonify({"status": "success"}), 200
 
 # --- TELEGRAM BACKGROUND WORKER ---
-def start_telegram_listener():
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
+def process_message(msg_id, msg_text, sender):
+    if not msg_text:
+        return
+    payload = {
+        "msg_id": msg_id,
+        "sender": getattr(sender, 'first_name', 'Student'),
+        "username": getattr(sender, 'username', None),
+        "text": msg_text
+    }
+    if not any(o.get('msg_id') == msg_id for o in live_orders_queue):
+        live_orders_queue.insert(0, payload)
+
+async def telegram_worker():
     client = TelegramClient('session_cloud', api_id, api_hash)
+    await client.start()
+    print("Telethon worker active and fetching messages...")
 
     @client.on(events.NewMessage())
     async def tele_handler(event):
         chat_id = event.chat_id
-        if chat_id == TARGET_GROUP_ID or chat_id == abs(TARGET_GROUP_ID) or str(chat_id) in [str(TARGET_GROUP_ID), str(abs(TARGET_GROUP_ID)), f"-{abs(TARGET_GROUP_ID)}"]:
-            msg_text = event.raw_text
-            if not msg_text:
-                return
-            
+        if str(chat_id) in [str(TARGET_GROUP_ID), str(abs(TARGET_GROUP_ID)), f"-{abs(TARGET_GROUP_ID)}"]:
             sender = await event.get_sender()
-            payload = {
-                "msg_id": event.id,
-                "sender": getattr(sender, 'first_name', 'Student'),
-                "username": getattr(sender, 'username', None),
-                "text": msg_text
-            }
-            import requests as http_req
-            try:
-                port = os.environ.get('PORT', 5000)
-                http_req.post(f'http://127.0.0.1:{port}/webhook', json=payload, timeout=2)
-            except Exception as e:
-                print(f"Webhook error: {e}")
+            process_message(event.id, event.raw_text, sender)
 
-    print("Starting Telethon global listener...")
-    client.start()
-    print("Telethon client connected successfully!")
-    loop.run_until_complete(client.run_until_disconnected())
+    # Active Polling Loop (fetches recent 10 messages every 5 seconds)
+    while True:
+        try:
+            async for message in client.iter_messages(TARGET_GROUP_ID, limit=10):
+                sender = await message.get_sender()
+                process_message(message.id, message.text, sender)
+        except Exception as e:
+            print(f"Polling loop error: {e}")
+        await asyncio.sleep(5)
+
+def start_telegram_listener():
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(telegram_worker())
 
 if not any(t.name == 'TelegramWorker' for t in threading.enumerate()):
     t = threading.Thread(target=start_telegram_listener, name='TelegramWorker', daemon=True)
