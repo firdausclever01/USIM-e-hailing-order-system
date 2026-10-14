@@ -87,6 +87,7 @@ def start_telegram_listener():
 
     @client.on(events.NewMessage(chats=TARGET_GROUP_ID))
     async def tele_handler(event):
+        print(f"DEBUG: New message caught: {event.raw_text}")
         msg_text = event.raw_text
         sender = await event.get_sender()
         payload = {
@@ -99,12 +100,13 @@ def start_telegram_listener():
             port = os.environ.get('PORT', 5000)
             http_req.post(f'http://127.0.0.1:{port}/webhook', json=payload, timeout=2)
         except Exception as e:
-            print(f"Error: {e}")
+            print(f"Error posting to webhook: {e}")
 
+    print("Starting Telethon client...")
     client.start()
+    print("Telethon client connected successfully!")
     loop.run_until_complete(client.run_until_disconnected())
 
-# Safely trigger background listener thread when the module is imported by Gunicorn
 if not any(t.name == 'TelegramWorker' for t in threading.enumerate()):
     t = threading.Thread(target=start_telegram_listener, name='TelegramWorker', daemon=True)
     t.start()
