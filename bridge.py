@@ -62,10 +62,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                         } else {
                             actionButton = `
                                 <div class="flex flex-col gap-1.5">
-                                    <a href="tg://user?id=${order.sender_id}" target="_blank" class="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-3 rounded-lg text-xs text-center">
-                                        💬 Open Direct Chat
-                                    </a>
-                                    <button onclick="navigator.clipboard.writeText('${order.sender}'); alert('Copied customer name: ${order.sender}\\nPaste in Telegram search!');" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium py-1.5 px-2 rounded-lg text-[10px] border border-slate-700 text-center">
+                                    <button onclick="navigator.clipboard.writeText('${order.sender}'); alert('Copied customer name: ${order.sender}\\nPaste in Telegram search!');" class="bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-3 rounded-lg text-xs text-center">
                                         📋 Copy Name for Telegram Search
                                     </button>
                                 </div>`;
@@ -117,22 +114,14 @@ def background_telegram_worker():
             if not await client.is_user_authorized():
                 return
             
+            print("Background Telegram worker connected successfully!")
+            
             while True:
                 try:
-                    target_entity = None
-                    # Flexible search matching for private supergroup IDs
-                    async for dialog in client.iter_dialogs(limit=100):
-                        clean_dialog_id = str(dialog.id).replace('-100', '')
-                        clean_target_id = str(TARGET_GROUP_ID).replace('-100', '')
-                        if clean_dialog_id == clean_target_id or dialog.id == TARGET_GROUP_ID:
-                            target_entity = dialog.entity
-                            break
+                    entity = await client.get_entity(TARGET_GROUP_ID)
                     
-                    if not target_entity:
-                        target_entity = await client.get_entity(TARGET_GROUP_ID)
-
                     orders = []
-                    async for message in client.iter_messages(target_entity, limit=15):
+                    async for message in client.iter_messages(entity, limit=15):
                         if message.text:
                             sender = await message.get_sender()
                             orders.append({
