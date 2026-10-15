@@ -36,7 +36,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl flex-1">
             <h3 class="text-sm font-bold text-white mb-3">📥 Live Customer Orders</h3>
             <div id="orders-container" class="space-y-3">
-                <div class="text-center py-12 text-slate-500">Loading orders instantly...</div>
+                <div class="text-center py-12 text-slate-500">Loading orders...</div>
             </div>
         </div>
     </main>
@@ -54,19 +54,27 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 
                 if (data && data.length > 0) {
                     container.innerHTML = data.map(order => {
+                        // Universal link logic: Username uses t.me, No-username uses tg:// direct user open scheme with web fallback
                         let chatLink = order.username 
-                            ? `https://t.me/${order.username}?text=${encodeURIComponent('Assalam, masih kosong? saya pickup boleh ya? 🚗💨')}`
-                            : `tg://resolve?id=${order.sender_id}`;
+                            ? `https://t.me/${order.username}?text=${encodeURIComponent('Hi, nak ambil ride ni ke? 🚗💨')}`
+                            : `tg://user?id=${order.sender_id}`;
+
+                        let fallbackAction = order.username 
+                            ? '' 
+                            : `<button onclick="alert('User ID copied: ${order.sender_id}. Open Telegram search and paste this ID or search by name!')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium py-1.5 px-2 rounded-lg text-[10px] border border-slate-700 text-center">📋 Copy User ID (No Username)</button>`;
 
                         return `
                             <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 flex flex-col gap-2 shadow-lg">
                                 <div class="flex justify-between items-center">
-                                    <span class="text-xs font-semibold text-cyan-300">${order.sender} ${order.username ? '(@' + order.username + ')' : '(No Username)'}</span>
+                                    <span class="text-xs font-semibold text-cyan-300">${order.sender} ${order.username ? '(@' + order.username + ')' : '(No Username - ID: ' + order.sender_id + ')'}</span>
                                 </div>
                                 <p class="text-xs text-slate-200 bg-slate-900 p-2 rounded font-mono">"${order.text}"</p>
-                                <a href="${chatLink}" target="_blank" class="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-3 rounded-lg text-xs text-center">
-                                    💬 Direct PM Customer
-                                </a>
+                                <div class="flex flex-col gap-1.5">
+                                    <a href="${chatLink}" target="_blank" class="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-3 rounded-lg text-xs text-center">
+                                        💬 Direct PM Customer
+                                    </a>
+                                    ${fallbackAction}
+                                </div>
                             </div>
                         `;
                     }).join('');
@@ -92,7 +100,6 @@ def get_live_orders():
 def background_telegram_worker():
     session_str = os.environ.get('SESSION_STRING', '')
     if not session_str:
-        print("Error: SESSION_STRING missing!")
         return
 
     loop = asyncio.new_event_loop()
@@ -105,22 +112,11 @@ def background_telegram_worker():
         try:
             await client.connect()
             if not await client.is_user_authorized():
-                print("Error: Session unauthorized!")
                 return
-            
-            print("Background Telegram worker connected successfully!")
             
             while True:
                 try:
                     target_entity = await client.get_entity(TARGET_GROUP_ID)
-                    async for dialog in client.iter_dialogs():
-                        if dialog.id == TARGET_GROUP_ID or dialog.id == abs(TARGET_GROUP_ID):
-                            target_entity = dialog.entity
-                            break
-                    
-                    if not target_entity:
-                        target_entity = await client.get_entity(TARGET_GROUP_ID)
-
                     orders = []
                     async for message in client.iter_messages(target_entity, limit=15):
                         if message.text:
@@ -129,20 +125,19 @@ def background_telegram_worker():
                                 "msg_id": message.id,
                                 "sender": getattr(sender, 'first_name', 'Student') if sender else 'Student',
                                 "username": getattr(sender, 'username', None) if sender else None,
-                                "sender_id": getattr(sender, 'id', '') if sender else '',
+                                "sender_id": str(getattr(sender, 'id', '')) if sender else '',
                                 "text": message.text
                             })
                     live_orders_cache = orders
                 except Exception as e:
                     print(f"Worker fetch error: {e}")
                 
-                await asyncio.sleep(4) # Refresh cache every 4 seconds
+                await asyncio.sleep(4)
         except Exception as e:
             print(f"Worker connection error: {e}")
 
     loop.run_until_complete(worker_loop())
 
-# Start the background worker thread when Flask boots up
 if not any(t.name == 'TelegramWorker' for t in threading.enumerate()):
     t = threading.Thread(target=background_telegram_worker, name='TelegramWorker', daemon=True)
     t.start()
