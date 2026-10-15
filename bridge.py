@@ -74,7 +74,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     <!-- Scripting & Logic -->
     <script>
         function openChatWithFallback(userId, username) {
-            const rideMsg = 'Assalam, masih kosong? saya pickup boleh ya? 🚗💨';
+            const rideMsg = 'Assalam Hi! Saya Grab Driver USIM. Dah ada yang pickup ke?🚗💨';
             if (username) {
                 window.open(`https://t.me/${username}?text=${encodeURIComponent(rideMsg)}`, '_blank');
             } else {
