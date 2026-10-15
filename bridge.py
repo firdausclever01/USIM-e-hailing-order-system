@@ -112,7 +112,7 @@ def background_telegram_worker():
             
             while True:
                 try:
-                    target_entity = None
+                    target_entity = await client.get_entity(TARGET_GROUP_ID)
                     async for dialog in client.iter_dialogs():
                         if dialog.id == TARGET_GROUP_ID or dialog.id == abs(TARGET_GROUP_ID):
                             target_entity = dialog.entity
