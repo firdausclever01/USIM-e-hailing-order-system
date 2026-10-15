@@ -55,7 +55,6 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                 if (data && data.length > 0) {
                     container.innerHTML = data.map(order => {
                         let actionButton = "";
-                        
                         if (order.username) {
                             let chatLink = `https://t.me/${order.username}?text=${encodeURIComponent('Hi, nak ambil ride ni ke? 🚗💨')}`;
                             actionButton = `<a href="${chatLink}" target="_blank" class="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-3 rounded-lg text-xs text-center">💬 Direct PM Customer</a>`;
@@ -79,7 +78,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                         `;
                     }).join('');
                 } else {
-                    container.innerHTML = '<div class="text-center py-12 text-slate-500">No recent orders found in group.</div>';
+                    container.innerHTML = '<div class="text-center py-12 text-slate-500">No recent orders found in group. (Scanning active chats...)</div>';
                 }
             } catch (e) { console.error(e); }
         }
@@ -118,20 +117,28 @@ def background_telegram_worker():
             
             while True:
                 try:
-                    entity = await client.get_entity(TARGET_GROUP_ID)
+                    target_entity = None
+                    # Search through dialogs dynamically to catch the private group object
+                    async for dialog in client.iter_dialogs():
+                        if dialog.id == TARGET_GROUP_ID or abs(dialog.id) == abs(TARGET_GROUP_ID):
+                            target_entity = dialog.entity
+                            break
                     
-                    orders = []
-                    async for message in client.iter_messages(entity, limit=15):
-                        if message.text:
-                            sender = await message.get_sender()
-                            orders.append({
-                                "msg_id": message.id,
-                                "sender": getattr(sender, 'first_name', 'Student') if sender else 'Student',
-                                "username": getattr(sender, 'username', None) if sender else None,
-                                "sender_id": str(getattr(sender, 'id', '')) if sender else '',
-                                "text": message.text
-                            })
-                    live_orders_cache = orders
+                    if target_entity:
+                        orders = []
+                        async for message in client.iter_messages(target_entity, limit=15):
+                            if message.text:
+                                sender = await message.get_sender()
+                                orders.append({
+                                    "msg_id": message.id,
+                                    "sender": getattr(sender, 'first_name', 'Student') if sender else 'Student',
+                                    "username": getattr(sender, 'username', None) if sender else None,
+                                    "sender_id": str(getattr(sender, 'id', '')) if sender else '',
+                                    "text": message.text
+                                })
+                        live_orders_cache = orders
+                    else:
+                        print("Target group ID not found in user's dialog list!")
                 except Exception as e:
                     print(f"Worker fetch error: {e}")
                 
