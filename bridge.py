@@ -56,7 +56,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                     container.innerHTML = data.map(order => {
                         let actionButton = "";
                         if (order.username) {
-                            let chatLink = `https://t.me/${order.username}?text=${encodeURIComponent('Hi, nak ambil ride ni ke? 🚗💨')}`;
+                            let chatLink = `https://t.me/${order.username}?text=${encodeURIComponent('Assalam, masih kosong? saya pickup boleh ya? 🚗💨')}`;
                             actionButton = `<a href="${chatLink}" target="_blank" class="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-3 rounded-lg text-xs text-center">💬 Direct PM Customer</a>`;
                         } else {
                             actionButton = `
@@ -78,7 +78,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                         `;
                     }).join('');
                 } else {
-                    container.innerHTML = '<div class="text-center py-12 text-slate-500">No recent orders found in group. (Scanning active chats...)</div>';
+                    container.innerHTML = '<div class="text-center py-12 text-slate-500">No recent orders found in group.</div>';
                 }
             } catch (e) { console.error(e); }
         }
@@ -96,9 +96,10 @@ def index():
 def get_live_orders():
     return jsonify(live_orders_cache)
 
-def background_telegram_worker():
+def run_worker():
     session_str = os.environ.get('SESSION_STRING', '')
     if not session_str:
+        print("CRITICAL ERROR: SESSION_STRING environment variable is missing!")
         return
 
     loop = asyncio.new_event_loop()
@@ -106,50 +107,45 @@ def background_telegram_worker():
     
     client = TelegramClient(StringSession(session_str), api_id, api_hash)
     
-    async def worker_loop():
+    async def main():
         global live_orders_cache
         try:
+            print("Connecting to Telegram client...")
             await client.connect()
+            
             if not await client.is_user_authorized():
+                print("CRITICAL ERROR: Telegram session is unauthorized!")
                 return
             
             print("Background Telegram worker connected successfully!")
             
             while True:
                 try:
-                    target_entity = None
-                    # Search through dialogs dynamically to catch the private group object
-                    async for dialog in client.iter_dialogs():
-                        if dialog.id == TARGET_GROUP_ID or abs(dialog.id) == abs(TARGET_GROUP_ID):
-                            target_entity = dialog.entity
-                            break
-                    
-                    if target_entity:
-                        orders = []
-                        async for message in client.iter_messages(target_entity, limit=15):
-                            if message.text:
-                                sender = await message.get_sender()
-                                orders.append({
-                                    "msg_id": message.id,
-                                    "sender": getattr(sender, 'first_name', 'Student') if sender else 'Student',
-                                    "username": getattr(sender, 'username', None) if sender else None,
-                                    "sender_id": str(getattr(sender, 'id', '')) if sender else '',
-                                    "text": message.text
-                                })
-                        live_orders_cache = orders
-                    else:
-                        print("Target group ID not found in user's dialog list!")
+                    target_entity = await client.get_entity(TARGET_GROUP_ID)
+                    orders = []
+                    async for message in client.iter_messages(target_entity, limit=15):
+                        if message.text:
+                            sender = await message.get_sender()
+                            orders.append({
+                                "msg_id": message.id,
+                                "sender": getattr(sender, 'first_name', 'Student') if sender else 'Student',
+                                "username": getattr(sender, 'username', None) if sender else None,
+                                "sender_id": str(getattr(sender, 'id', '')) if sender else '',
+                                "text": message.text
+                            })
+                    live_orders_cache = orders
                 except Exception as e:
-                    print(f"Worker fetch error: {e}")
+                    print(f"Worker fetch iteration error: {e}")
                 
                 await asyncio.sleep(4)
         except Exception as e:
-            print(f"Worker connection error: {e}")
+            print(f"Worker main connection error: {e}")
 
-    loop.run_until_complete(worker_loop())
+    loop.run_until_complete(main())
 
+# Start worker thread safely
 if not any(t.name == 'TelegramWorker' for t in threading.enumerate()):
-    t = threading.Thread(target=background_telegram_worker, name='TelegramWorker', daemon=True)
+    t = threading.Thread(target=run_worker, name='TelegramWorker', daemon=True)
     t.start()
 
 if __name__ == '__main__':
