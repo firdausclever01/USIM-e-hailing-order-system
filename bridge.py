@@ -38,12 +38,6 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         </div>
     </main>
     <script>
-        function openNoUsernameChat(senderId, senderName) {
-            navigator.clipboard.writeText(senderId);
-            alert(`Copied Customer ID: ${senderId}\\n\\nTelegram web/app will open. Paste this ID into Telegram's global search bar to chat directly with ${senderName}!`);
-            window.open('https://web.telegram.org/k/#@', '_blank');
-        }
-
         async function fetchLiveOrders() {
             try {
                 const res = await fetch('/api/live-orders');
@@ -60,13 +54,17 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                         let actionButton = "";
                         
                         if (order.username) {
-                            let chatLink = `https://t.me/${order.username}?text=${encodeURIComponent('Hi, nak ambil ride ni ke? 🚗💨')}`;
+                            let chatLink = `https://t.me/${order.username}?text=${encodeURIComponent('Assalam, masih kosong? saya pickup boleh ya? 🚗💨')}`;
                             actionButton = `<a href="${chatLink}" target="_blank" class="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-3 rounded-lg text-xs text-center">💬 Direct PM Customer</a>`;
                         } else {
+                            let appLink = `tg://openmessage?user_id=${order.sender_id}`;
                             actionButton = `
                                 <div class="flex flex-col gap-2">
-                                    <button onclick="openNoUsernameChat('${order.sender_id}', '${order.sender}')" class="bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-3 rounded-lg text-xs text-center">
-                                        🔍 Copy ID & Open Telegram Search
+                                    <a href="${appLink}" class="bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-3 rounded-lg text-xs text-center">
+                                        🚀 Open Installed App (Direct PM)
+                                    </a>
+                                    <button onclick="navigator.clipboard.writeText('${order.sender}'); alert('Copied customer name: ${order.sender}\\nPaste in Telegram search!');" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold py-1.5 px-3 rounded-lg text-xs text-center border border-slate-700">
+                                        📋 Copy Name for Search Fallback
                                     </button>
                                 </div>`;
                         }
@@ -74,7 +72,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                         return `
                             <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 flex flex-col gap-2 shadow-lg">
                                 <div class="flex justify-between items-center">
-                                    <span class="text-xs font-semibold text-cyan-300">${order.sender} ${order.username ? '(@' + order.username + ')' : '(No Username - ID: ' + order.sender_id + ')'}</span>
+                                    <span class="text-xs font-semibold text-cyan-300">${order.sender} ${order.username ? '(@' + order.username + ')' : '(No Username)'}</span>
                                 </div>
                                 <p class="text-xs text-slate-200 bg-slate-900 p-2 rounded font-mono">"${order.text}"</p>
                                 ${actionButton}
