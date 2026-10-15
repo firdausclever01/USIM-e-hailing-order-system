@@ -1,9 +1,6 @@
 import os
-import threading
-import time
-import asyncio
 from flask import Flask, jsonify
-from telethon import TelegramClient
+from telethon.sync import TelegramClient
 from telethon.sessions import StringSession
 
 api_id = 34569406
@@ -11,7 +8,6 @@ api_hash = 'f9b8a66dc67f43bea1cc5502689c0f33'
 TARGET_GROUP_ID = -1001307640388
 
 app = Flask(__name__)
-live_orders_cache = []
 
 DASHBOARD_HTML = """<!DOCTYPE html>
 <html lang="en">
@@ -82,7 +78,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                 }
             } catch (e) { console.error(e); }
         }
-        setInterval(fetchLiveOrders, 3000);
+        setInterval(fetchLiveOrders, 5000);
         fetchLiveOrders();
     </script>
 </body>
@@ -94,60 +90,28 @@ def index():
 
 @app.route('/api/live-orders', methods=['GET'])
 def get_live_orders():
-    return jsonify(live_orders_cache)
-
-def run_worker():
     session_str = os.environ.get('SESSION_STRING', '')
     if not session_str:
-        print("CRITICAL ERROR: SESSION_STRING environment variable is missing!")
-        return
+        return jsonify({"error": "SESSION_STRING missing in environment variables"})
 
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
-    client = TelegramClient(StringSession(session_str), api_id, api_hash, connection_retries=3, timeout=10)
-    
-    async def main():
-        global live_orders_cache
-        try:
-            print("Connecting to Telegram client with timeout protection...")
-            await asyncio.wait_for(client.connect(), timeout=15.0)
-            
-            if not await client.is_user_authorized():
-                print("CRITICAL ERROR: Telegram session is unauthorized!")
-                return
-            
-            print("Background Telegram worker connected successfully!")
-            
-            while True:
-                try:
-                    target_entity = await client.get_entity(TARGET_GROUP_ID)
-                    orders = []
-                    async for message in client.iter_messages(target_entity, limit=15):
-                        if message.text:
-                            sender = await message.get_sender()
-                            orders.append({
-                                "msg_id": message.id,
-                                "sender": getattr(sender, 'first_name', 'Student') if sender else 'Student',
-                                "username": getattr(sender, 'username', None) if sender else None,
-                                "sender_id": str(getattr(sender, 'id', '')) if sender else '',
-                                "text": message.text
-                            })
-                    live_orders_cache = orders
-                except Exception as e:
-                    print(f"Worker fetch iteration error: {e}")
-                
-                await asyncio.sleep(4)
-        except asyncio.TimeoutError:
-            print("CRITICAL ERROR: Connection to Telegram timed out! Check Render network or API credentials.")
-        except Exception as e:
-            print(f"Worker main connection error: {e}")
-
-    loop.run_until_complete(main())
-
-if not any(t.name == 'TelegramWorker' for t in threading.enumerate()):
-    t = threading.Thread(target=run_worker, name='TelegramWorker', daemon=True)
-    t.start()
+    try:
+        # Use Telethon synchronous client context manager for safe handling on cloud hosts
+        with TelegramClient(StringSession(session_str), api_id, api_hash) as client:
+            entity = client.get_entity(TARGET_GROUP_ID)
+            orders = []
+            for message in client.iter_messages(entity, limit=15):
+                if message.text:
+                    sender = message.get_sender()
+                    orders.append({
+                        "msg_id": message.id,
+                        "sender": getattr(sender, 'first_name', 'Student') if sender else 'Student',
+                        "username": getattr(sender, 'username', None) if sender else None,
+                        "sender_id": str(getattr(sender, 'id', '')) if sender else '',
+                        "text": message.text
+                    })
+            return jsonify(orders)
+    except Exception as e:
+        return jsonify({"error": str(e)})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
