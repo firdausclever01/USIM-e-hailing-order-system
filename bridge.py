@@ -31,7 +31,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
             </div>
             <div>
                 <h1 class="text-base font-bold tracking-tight text-slate-900 flex items-center gap-2">
-                    Velocity Dispatch <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-600 border border-cyan-200">v2.6 Light</span>
+                    Velocity Dispatch <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-600 border border-cyan-200">v2.7 Light</span>
                 </h1>
                 <div class="flex items-center gap-2 mt-0.5">
                     <span class="relative flex h-2 w-2">
@@ -88,9 +88,10 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                 if (data && data.length > 0) {
                     countBadge.innerText = data.length;
                     container.innerHTML = data.map(order => {
+                        const rideMsg = encodeURIComponent('Assalam, masih kosong? saya pickup boleh ya? 🚗💨');
                         let chatLink = order.username 
-                            ? `https://t.me/${order.username}?text=${encodeURIComponent('Assalam, masih kosong? saya pickup boleh ya? 🚗💨')}`
-                            : `tg://openmessage?user_id=${order.sender_id}`;
+                            ? `https://t.me/${order.username}?text=${rideMsg}`
+                            : `tg://openmessage?user_id=${order.sender_id}&text=${rideMsg}`;
 
                         let userBadge = order.username 
                             ? `<span class="bg-cyan-50 text-cyan-600 border border-cyan-200 px-2.5 py-0.5 rounded-full text-[11px] font-semibold">@${order.username}</span>`
