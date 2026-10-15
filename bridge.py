@@ -1,6 +1,7 @@
 import os
+import asyncio
 from flask import Flask, jsonify
-from telethon.sync import TelegramClient
+from telethon import TelegramClient
 from telethon.sessions import StringSession
 
 api_id = 34569406
@@ -94,14 +95,21 @@ def get_live_orders():
     if not session_str:
         return jsonify({"error": "SESSION_STRING missing in environment variables"})
 
-    try:
-        # Use Telethon synchronous client context manager for safe handling on cloud hosts
-        with TelegramClient(StringSession(session_str), api_id, api_hash) as client:
-            entity = client.get_entity(TARGET_GROUP_ID)
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+    async def fetch_orders_async():
+        client = TelegramClient(StringSession(session_str), api_id, api_hash)
+        await client.connect()
+        try:
+            if not await client.is_user_authorized():
+                return {"error": "Telegram session unauthorized"}
+            
+            target_entity = await client.get_entity(TARGET_GROUP_ID)
             orders = []
-            for message in client.iter_messages(entity, limit=15):
+            async for message in client.iter_messages(target_entity, limit=15):
                 if message.text:
-                    sender = message.get_sender()
+                    sender = await message.get_sender()
                     orders.append({
                         "msg_id": message.id,
                         "sender": getattr(sender, 'first_name', 'Student') if sender else 'Student',
@@ -109,9 +117,19 @@ def get_live_orders():
                         "sender_id": str(getattr(sender, 'id', '')) if sender else '',
                         "text": message.text
                     })
-            return jsonify(orders)
+            return orders
+        finally:
+            await client.disconnect()
+
+    try:
+        result = loop.run_until_complete(fetch_orders_async())
+        if isinstance(result, dict) and "error" in result:
+            return jsonify(result)
+        return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)})
+    finally:
+        loop.close()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
