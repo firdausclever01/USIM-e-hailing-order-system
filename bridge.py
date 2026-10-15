@@ -31,7 +31,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
             </div>
             <div>
                 <h1 class="text-base font-bold tracking-tight text-slate-900 flex items-center gap-2">
-                    Velocity Dispatch <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-600 border border-cyan-200">v2.8 Light</span>
+                    Velocity Dispatch <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-600 border border-cyan-200">v2.9 Light</span>
                 </h1>
                 <div class="flex items-center gap-2 mt-0.5">
                     <span class="relative flex h-2 w-2">
@@ -73,13 +73,6 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 
     <!-- Scripting & Logic -->
     <script>
-        function handleNoUsernameClick(userId) {
-            const message = "Assalam, masih kosong? saya pickup boleh ya? 🚗💨";
-            navigator.clipboard.writeText(message);
-            // Open direct Telegram app link
-            window.location.href = `tg://openmessage?user_id=${userId}`;
-        }
-
         async function fetchLiveOrders() {
             try {
                 const res = await fetch('/api/live-orders');
@@ -97,13 +90,10 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                     container.innerHTML = data.map(order => {
                         const rideMsg = encodeURIComponent('Assalam, masih kosong? saya pickup boleh ya? 🚗💨');
                         
-                        let actionButton = "";
-                        if (order.username) {
-                            let chatLink = `https://t.me/${order.username}?text=${rideMsg}`;
-                            actionButton = `<a href="${chatLink}" target="_blank" class="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold py-2.5 px-4 rounded-xl text-xs text-center shadow-md shadow-cyan-600/20 transition-all duration-200 active:scale-[0.99] flex items-center justify-center gap-2"><span>💬</span> Direct PM Customer</a>`;
-                        } else {
-                            actionButton = `<button onclick="handleNoUsernameClick('${order.sender_id}')" class="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold py-2.5 px-4 rounded-xl text-xs text-center shadow-md shadow-cyan-600/20 transition-all duration-200 active:scale-[0.99] flex items-center justify-center gap-2"><span>💬</span> Direct PM Customer</button>`;
-                        }
+                        // If username exists use standard direct t.me link, else use Telegram Share URI
+                        let chatLink = order.username 
+                            ? `https://t.me/${order.username}?text=${rideMsg}`
+                            : `tg://msg_url?url=&text=${rideMsg}`;
 
                         let userBadge = order.username 
                             ? `<span class="bg-cyan-50 text-cyan-600 border border-cyan-200 px-2.5 py-0.5 rounded-full text-[11px] font-semibold">@${order.username}</span>`
@@ -125,7 +115,9 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                                     "${order.text}"
                                 </div>
                                 
-                                ${actionButton}
+                                <a href="${chatLink}" class="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold py-2.5 px-4 rounded-xl text-xs text-center shadow-md shadow-cyan-600/20 transition-all duration-200 active:scale-[0.99] flex items-center justify-center gap-2">
+                                    <span>💬</span> Direct PM Customer
+                                </a>
                             </div>
                         `;
                     }).join('');
