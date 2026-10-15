@@ -15,64 +15,112 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Telegram E-Hailing Dispatcher</title>
+    <title>Velocity Dispatch | Cloud E-Hailing</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
-    <header class="bg-slate-900 border-b border-slate-800 py-4 px-6 flex justify-between items-center sticky top-0 z-50">
-        <div class="flex items-center space-x-3">
-            <div class="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 font-bold text-xl">🚗</div>
+<body class="bg-slate-50 text-slate-900 min-h-screen flex flex-col selection:bg-cyan-500 selection:text-white">
+    <!-- Top Header -->
+    <header class="bg-white/80 backdrop-blur-md border-b border-slate-200 py-4 px-6 sm:px-8 flex justify-between items-center sticky top-0 z-50 shadow-sm">
+        <div class="flex items-center space-x-3.5">
+            <div class="w-11 h-11 rounded-2xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white shadow-lg shadow-cyan-500/20 text-xl font-bold">
+                ⚡
+            </div>
             <div>
-                <h1 class="text-base font-bold text-white">Cloud E-Hailing Dispatcher</h1>
-                <p id="connection-status" class="text-xs text-emerald-400">● Live & Connected</p>
+                <h1 class="text-base font-bold tracking-tight text-slate-900 flex items-center gap-2">
+                    Velocity Dispatch <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-600 border border-cyan-200">v2.6 Light</span>
+                </h1>
+                <div class="flex items-center gap-2 mt-0.5">
+                    <span class="relative flex h-2 w-2">
+                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                    <span class="text-xs text-emerald-600 font-medium">Synchronized with Telegram Cloud</span>
+                </div>
             </div>
         </div>
-        <button onclick="fetchLiveOrders()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-3 py-1.5 rounded-lg border border-slate-700">🔄 Refresh</button>
+        <div class="flex items-center gap-3">
+            <div class="hidden sm:flex items-center bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-xl text-xs font-medium text-slate-600">
+                Active Orders: <span id="count-num" class="text-cyan-600 font-bold ml-1.5">0</span>
+            </div>
+            <button onclick="fetchLiveOrders()" class="bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold px-4 py-2 rounded-xl border border-slate-200 shadow-sm transition-all duration-200 active:scale-95 flex items-center gap-1.5">
+                <span>🔄</span> Refresh
+            </button>
+        </div>
     </header>
-    <main class="flex-1 max-w-4xl w-full mx-auto p-4 flex flex-col space-y-4">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl flex-1">
-            <h3 class="text-sm font-bold text-white mb-3">📥 Live Customer Orders</h3>
-            <div id="orders-container" class="space-y-3">
-                <div class="text-center py-12 text-slate-500">Loading orders...</div>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 max-w-3xl w-full mx-auto p-4 sm:p-6 flex flex-col space-y-4">
+        <div class="bg-white border border-slate-200/80 rounded-3xl p-5 sm:p-6 shadow-xl shadow-slate-200/50 flex-1 flex flex-col">
+            <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-100">
+                <h3 class="text-sm font-bold text-slate-800 tracking-wide uppercase flex items-center gap-2">
+                    <span>📥</span> Live Customer Dispatch Stream
+                </h3>
+                <span class="text-xs text-slate-400">Auto-polling every 5s</span>
+            </div>
+            
+            <div id="orders-container" class="space-y-3.5 flex-1">
+                <div class="text-center py-16 text-slate-400 flex flex-col items-center justify-center space-y-3">
+                    <div class="w-8 h-8 border-2 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin"></div>
+                    <p class="text-xs font-medium">Establishing secure stream...</p>
+                </div>
             </div>
         </div>
     </main>
+
+    <!-- Scripting & Logic -->
     <script>
         async function fetchLiveOrders() {
             try {
                 const res = await fetch('/api/live-orders');
                 const data = await res.json();
                 const container = document.getElementById('orders-container');
+                const countBadge = document.getElementById('count-num');
                 
                 if (data.error) {
-                    container.innerHTML = `<div class="text-center py-6 text-rose-400 font-mono text-xs bg-rose-950/30 p-4 rounded-xl border border-rose-900">⚠️ Backend Error: ${data.error}</div>`;
+                    container.innerHTML = `<div class="text-center py-8 text-rose-600 font-mono text-xs bg-rose-50 p-4 rounded-2xl border border-rose-200">⚠️ Backend Error: ${data.error}</div>`;
                     return;
                 }
 
                 if (data && data.length > 0) {
+                    countBadge.innerText = data.length;
                     container.innerHTML = data.map(order => {
-                        let actionButton = "";
-                        
-                        if (order.username) {
-                            let chatLink = `https://t.me/${order.username}?text=${encodeURIComponent('Assalam, masih kosong? saya pickup boleh ya? 🚗💨')}`;
-                            actionButton = `<a href="${chatLink}" target="_blank" class="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-3 rounded-lg text-xs text-center">💬 Direct PM Customer</a>`;
-                        } else {
-                            let appLink = `tg://openmessage?user_id=${order.sender_id}`;
-                            actionButton = `<a href="${appLink}" class="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-3 rounded-lg text-xs text-center">💬 Direct PM Customer</a>`;
-                        }
+                        let chatLink = order.username 
+                            ? `https://t.me/${order.username}?text=${encodeURIComponent('Assalam, masih kosong? saya pickup boleh ya? 🚗💨')}`
+                            : `tg://openmessage?user_id=${order.sender_id}`;
+
+                        let userBadge = order.username 
+                            ? `<span class="bg-cyan-50 text-cyan-600 border border-cyan-200 px-2.5 py-0.5 rounded-full text-[11px] font-semibold">@${order.username}</span>`
+                            : `<span class="bg-amber-50 text-amber-600 border border-amber-200 px-2.5 py-0.5 rounded-full text-[11px] font-semibold">No Username</span>`;
 
                         return `
-                            <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 flex flex-col gap-2 shadow-lg">
+                            <div class="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-slate-300 transition-all duration-200 flex flex-col gap-3 shadow-sm hover:shadow-md">
                                 <div class="flex justify-between items-center">
-                                    <span class="text-xs font-semibold text-cyan-300">${order.sender} ${order.username ? '(@' + order.username + ')' : '(No Username)'}</span>
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-xs text-slate-700 font-bold border border-slate-200">
+                                            ${order.sender.charAt(0).toUpperCase()}
+                                        </div>
+                                        <span class="text-xs font-bold text-slate-800 tracking-wide">${order.sender}</span>
+                                    </div>
+                                    ${userBadge}
                                 </div>
-                                <p class="text-xs text-slate-200 bg-slate-900 p-2 rounded font-mono">"${order.text}"</p>
-                                ${actionButton}
+                                
+                                <div class="bg-slate-50 px-3.5 py-2.5 rounded-xl border border-slate-100 text-xs font-mono text-slate-700 tracking-wide">
+                                    "${order.text}"
+                                </div>
+                                
+                                <a href="${chatLink}" class="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold py-2.5 px-4 rounded-xl text-xs text-center shadow-md shadow-cyan-600/20 transition-all duration-200 active:scale-[0.99] flex items-center justify-center gap-2">
+                                    <span>💬</span> Direct PM Customer
+                                </a>
                             </div>
                         `;
                     }).join('');
                 } else {
-                    container.innerHTML = '<div class="text-center py-12 text-slate-500">No recent orders found in group.</div>';
+                    countBadge.innerText = 0;
+                    container.innerHTML = '<div class="text-center py-16 text-slate-400 text-xs font-medium">No recent orders found in the group stream.</div>';
                 }
             } catch (e) { console.error(e); }
         }
