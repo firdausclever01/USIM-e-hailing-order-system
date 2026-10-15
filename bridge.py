@@ -52,12 +52,17 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                 if (data && data.length > 0) {
                     container.innerHTML = data.map(order => {
                         let actionButton = "";
+                        
                         if (order.username) {
                             let chatLink = `https://t.me/${order.username}?text=${encodeURIComponent('Assalam, masih kosong? saya pickup boleh ya? 🚗💨')}`;
                             actionButton = `<a href="${chatLink}" target="_blank" class="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-3 rounded-lg text-xs text-center">💬 Direct PM Customer</a>`;
                         } else {
+                            let idLink = `tg://user?id=${order.sender_id}`;
                             actionButton = `
-                                <div class="flex flex-col gap-1.5">
+                                <div class="flex flex-col gap-2">
+                                    <a href="${idLink}" class="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-3 rounded-lg text-xs text-center">
+                                        💬 Direct PM Customer (By ID)
+                                    </a>
                                     <button onclick="navigator.clipboard.writeText('${order.sender}'); alert('Copied customer name: ${order.sender}\\nPaste in Telegram search!');" class="bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-3 rounded-lg text-xs text-center">
                                         📋 Copy Name for Telegram Search
                                     </button>
