@@ -53,8 +53,8 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                     container.innerHTML = data.map(order => {
                         // Use username link if available, otherwise fallback to tg://user?id=
                         let chatLink = order.username 
-                            ? `https://t.me/${order.username}?text=${encodeURIComponent('Hi, nak ambil ride ni ke? 🚗💨')}`
-                            : `tg://user?id=${order.sender_id}`;
+                            ? `https://t.me/${order.username}?text=${encodeURIComponent('Assalam, masih kosong? saya pickup boleh ya? 🚗💨')}`
+                            : `tg://resolve?id=${order.sender_id`;
 
                         return `
                             <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 flex flex-col gap-2 shadow-lg">
