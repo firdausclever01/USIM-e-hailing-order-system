@@ -105,13 +105,13 @@ def run_worker():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     
-    client = TelegramClient(StringSession(session_str), api_id, api_hash)
+    client = TelegramClient(StringSession(session_str), api_id, api_hash, connection_retries=3, timeout=10)
     
     async def main():
         global live_orders_cache
         try:
-            print("Connecting to Telegram client...")
-            await client.connect()
+            print("Connecting to Telegram client with timeout protection...")
+            await asyncio.wait_for(client.connect(), timeout=15.0)
             
             if not await client.is_user_authorized():
                 print("CRITICAL ERROR: Telegram session is unauthorized!")
@@ -138,12 +138,13 @@ def run_worker():
                     print(f"Worker fetch iteration error: {e}")
                 
                 await asyncio.sleep(4)
+        except asyncio.TimeoutError:
+            print("CRITICAL ERROR: Connection to Telegram timed out! Check Render network or API credentials.")
         except Exception as e:
             print(f"Worker main connection error: {e}")
 
     loop.run_until_complete(main())
 
-# Start worker thread safely
 if not any(t.name == 'TelegramWorker' for t in threading.enumerate()):
     t = threading.Thread(target=run_worker, name='TelegramWorker', daemon=True)
     t.start()
