@@ -3,7 +3,6 @@ import asyncio
 from flask import Flask, jsonify
 from telethon import TelegramClient
 from telethon.sessions import StringSession
-from telethon.tl.types import PeerChannel
 
 api_id = 34569406
 api_hash = 'f9b8a66dc67f43bea1cc5502689c0f33'
@@ -51,17 +50,24 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                 }
 
                 if (data && data.length > 0) {
-                    container.innerHTML = data.map(order => `
-                        <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 flex flex-col gap-2 shadow-lg">
-                            <div class="flex justify-between items-center">
-                                <span class="text-xs font-semibold text-cyan-300">${order.sender} ${order.username ? '(@' + order.username + ')' : ''}</span>
+                    container.innerHTML = data.map(order => {
+                        // Use username link if available, otherwise fallback to tg://user?id=
+                        let chatLink = order.username 
+                            ? `https://t.me/${order.username}?text=${encodeURIComponent('Hi, nak ambil ride ni ke? 🚗💨')}`
+                            : `tg://user?id=${order.sender_id}`;
+
+                        return `
+                            <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 flex flex-col gap-2 shadow-lg">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-xs font-semibold text-cyan-300">${order.sender} ${order.username ? '(@' + order.username + ')' : '(No Username)'}</span>
+                                </div>
+                                <p class="text-xs text-slate-200 bg-slate-900 p-2 rounded font-mono">"${order.text}"</p>
+                                <a href="${chatLink}" target="_blank" class="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-3 rounded-lg text-xs text-center">
+                                    💬 Direct PM Customer
+                                </a>
                             </div>
-                            <p class="text-xs text-slate-200 bg-slate-900 p-2 rounded font-mono">"${order.text}"</p>
-                            <a href="${order.username ? 'https://t.me/' + order.username + '?text=' + encodeURIComponent('Assalam, masih kosong? saya pickup boleh ya? 🚗💨') : 'tg://'}" target="_blank" class="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-3 rounded-lg text-xs text-center">
-                                💬 Direct PM Customer
-                            </a>
-                        </div>
-                    `).join('');
+                        `;
+                    }).join('');
                 } else {
                     container.innerHTML = '<div class="text-center py-12 text-slate-500">No recent orders found in group.</div>';
                 }
@@ -93,7 +99,6 @@ def get_live_orders():
             if not await client.is_user_authorized():
                 return {"error": "Session string is unauthorized or invalid!"}
             
-            # Force cache load of dialogs so the private channel access hash is registered
             target_entity = None
             async for dialog in client.iter_dialogs():
                 if dialog.id == TARGET_GROUP_ID or dialog.id == abs(TARGET_GROUP_ID):
@@ -111,6 +116,7 @@ def get_live_orders():
                         "msg_id": message.id,
                         "sender": getattr(sender, 'first_name', 'Student') if sender else 'Student',
                         "username": getattr(sender, 'username', None) if sender else None,
+                        "sender_id": getattr(sender, 'id', '') if sender else '',
                         "text": message.text
                     })
             return orders
