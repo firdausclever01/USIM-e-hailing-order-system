@@ -58,15 +58,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                             actionButton = `<a href="${chatLink}" target="_blank" class="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-3 rounded-lg text-xs text-center">💬 Direct PM Customer</a>`;
                         } else {
                             let appLink = `tg://openmessage?user_id=${order.sender_id}`;
-                            actionButton = `
-                                <div class="flex flex-col gap-2">
-                                    <a href="${appLink}" class="bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-3 rounded-lg text-xs text-center">
-                                        🚀 Open Installed App (Direct PM)
-                                    </a>
-                                    <button onclick="navigator.clipboard.writeText('${order.sender}'); alert('Copied customer name: ${order.sender}\\nPaste in Telegram search!');" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold py-1.5 px-3 rounded-lg text-xs text-center border border-slate-700">
-                                        📋 Copy Name for Search Fallback
-                                    </button>
-                                </div>`;
+                            actionButton = `<a href="${appLink}" class="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-3 rounded-lg text-xs text-center">💬 Direct PM Customer</a>`;
                         }
 
                         return `
